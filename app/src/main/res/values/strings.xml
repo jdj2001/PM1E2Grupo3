@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">PM1E2Grupo3</string>
+    <string name="video_description">Descripción de la imagen</string>
+    <string name="delete_icon">Icono de eliminar</string>
+</resources>

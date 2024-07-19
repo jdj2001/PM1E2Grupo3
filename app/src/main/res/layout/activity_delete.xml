@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <Button
+        android:id="@+id/btnDelete"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Eliminar Registro"
+        android:layout_centerInParent="true"
+        android:background="@color/colorAccent"
+        android:textColor="#fff"
+        android:textAllCaps="false"
+        android:textSize="18sp" />
+
+</RelativeLayout>
