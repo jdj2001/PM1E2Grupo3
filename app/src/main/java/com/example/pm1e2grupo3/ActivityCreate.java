@@ -26,9 +26,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
+import com.android.volley.RetryPolicy;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
@@ -179,15 +181,43 @@ public class ActivityCreate extends AppCompatActivity {
     }
 
     private String convertVideoToBase64(Uri videoUri) {
+        ByteArrayOutputStream byteArrayOutputStream = null;
+        InputStream inputStream = null;
+
         try {
-            InputStream inputStream = getContentResolver().openInputStream(videoUri);
-            byte[] bytes = getBytes(inputStream);
+            inputStream = getContentResolver().openInputStream(videoUri);
+            byteArrayOutputStream = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int length;
+
+            // Leer el archivo en trozos y escribirlo en el ByteArrayOutputStream
+            while ((length = inputStream.read(buffer)) != -1) {
+                byteArrayOutputStream.write(buffer, 0, length);
+            }
+
+            // Convertir los bytes leídos a una cadena Base64
+            byte[] bytes = byteArrayOutputStream.toByteArray();
             return Base64.encodeToString(bytes, Base64.DEFAULT);
+
         } catch (IOException e) {
             e.printStackTrace();
             return null;
+
+        } finally {
+            // Cerrar el InputStream y ByteArrayOutputStream
+            try {
+                if (inputStream != null) {
+                    inputStream.close();
+                }
+                if (byteArrayOutputStream != null) {
+                    byteArrayOutputStream.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
+
 
     private byte[] getBytes(InputStream inputStream) throws IOException {
         ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
@@ -219,22 +249,30 @@ public class ActivityCreate extends AppCompatActivity {
             return;
         }
 
+        btnSave.setEnabled(false); // Deshabilitar el botón de guardar
+
         RequestQueue requestQueue = Volley.newRequestQueue(this);
+
+        int socketTimeout = 100000; // 60 segundos
+        RetryPolicy retryPolicy = new DefaultRetryPolicy(socketTimeout,
+                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT);
+
         StringRequest stringRequest = new StringRequest(Request.Method.POST, "http://192.168.58.106/crud_php_examen/insert_persona.php",
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
                         Log.d("Response", response);
                         Toast.makeText(ActivityCreate.this, "Datos guardados correctamente", Toast.LENGTH_SHORT).show();
-
-                        // Reiniciar la actividad para limpiar todos los campos y restablecer el estado inicial
-
+                        clearFields();
+                        btnSave.setEnabled(true);
                     }
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
                 Toast.makeText(ActivityCreate.this, "Error al guardar datos", Toast.LENGTH_SHORT).show();
                 Log.e("Volley", "Error en la solicitud HTTP", error);
+                btnSave.setEnabled(true);
             }
         }) {
             @Override
@@ -245,19 +283,29 @@ public class ActivityCreate extends AppCompatActivity {
                 params.put("latitud", latitud);
                 params.put("longitud", longitud);
                 params.put("video", videoBase64);
-
-                // Verificar los valores antes de enviarlos
                 Log.d("Params", "nombre: " + nombre);
                 Log.d("Params", "telefono: " + telefono);
                 Log.d("Params", "latitud: " + latitud);
                 Log.d("Params", "longitud: " + longitud);
                 Log.d("Params", "video: " + videoBase64);
-
                 return params;
             }
         };
 
+        stringRequest.setRetryPolicy(retryPolicy);
         requestQueue.add(stringRequest);
+
     }
+
+
+    private void clearFields() {
+        etNombre.setText("");
+        etTelefono.setText("");
+        etLatitud.setText("");
+        etLongitud.setText("");
+        videoView.setVideoURI(null);
+        videoBase64 = null;
+    }
+
 
 }

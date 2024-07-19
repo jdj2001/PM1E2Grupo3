@@ -4,12 +4,15 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.media.MediaPlayer;
 import android.net.Uri;
+import android.util.Base64;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
@@ -29,6 +32,9 @@ import com.android.volley.toolbox.Volley;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +45,7 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
     private List<Person> contactList;
     private List<Person> contactListFull; // Lista completa para realizar la búsqueda
 
+    // Constructor del adaptador
     public ContactAdapter(Context context, List<Person> contactList) {
         this.context = context;
         this.contactList = contactList;
@@ -60,26 +67,46 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
 
         // Manejar la carga del video
         if (contact.getVideo() != null && !contact.getVideo().isEmpty()) {
-            // Mostrar el VideoView y ocultar el ImageView
             holder.videoView.setVisibility(View.VISIBLE);
-            Uri videoUri = Uri.parse(contact.getVideo()); // 'video' es la URL del video
-            holder.videoView.setVideoURI(videoUri);
-            holder.videoView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, videoUri);
-                    intent.setDataAndType(videoUri, "video/*");
-                    try {
-                        context.startActivity(intent);
-                    } catch (ActivityNotFoundException ex) {
-                        Toast.makeText(context, "No se puede reproducir el video", Toast.LENGTH_SHORT).show();
+            holder.ivPhoto.setVisibility(View.GONE);
+
+            try {
+                File tempVideoFile = decodeBase64AndSaveVideo(contact.getVideo());
+                Uri videoUri = Uri.fromFile(tempVideoFile);
+                holder.videoView.setVideoURI(videoUri);
+
+                holder.videoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                    @Override
+                    public void onPrepared(MediaPlayer mp) {
+                        mp.setOnVideoSizeChangedListener(new MediaPlayer.OnVideoSizeChangedListener() {
+                            @Override
+                            public void onVideoSizeChanged(MediaPlayer mp, int width, int height) {
+                                holder.videoView.start();
+                            }
+                        });
                     }
-                }
-            });
+                });
+
+                holder.videoView.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                    @Override
+                    public boolean onError(MediaPlayer mp, int what, int extra) {
+                        Log.e("VideoError", "Error code: " + what + " Extra code: " + extra);
+                        return true;
+                    }
+                });
+
+            } catch (IOException e) {
+                e.printStackTrace();
+                holder.videoView.setVisibility(View.GONE);
+                holder.ivPhoto.setVisibility(View.VISIBLE);
+                Toast.makeText(context, "Error al cargar el video", Toast.LENGTH_SHORT).show();
+            }
         } else {
             holder.videoView.setVisibility(View.GONE);
+            holder.ivPhoto.setVisibility(View.VISIBLE);
         }
 
+        // Configurar el botón de actualización
         holder.btnUpdate.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -87,6 +114,7 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             }
         });
 
+        // Configurar el botón de eliminación
         holder.btnDelete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -94,6 +122,7 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             }
         });
 
+        // Configurar el clic en el ítem de la lista
         holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -101,6 +130,7 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             }
         });
 
+        // Configurar el clic largo en el ítem de la lista
         holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
@@ -108,7 +138,48 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
                 return true;
             }
         });
+
+        // Configurar el clic en el VideoView para reproducir el video
+        holder.videoView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Verifica si la URI del video es válida
+                if (contact.getVideo() != null && !contact.getVideo().isEmpty()) {
+                    // Crear un archivo temporal para el video
+                    try {
+                        File tempVideoFile = decodeBase64AndSaveVideo(contact.getVideo());
+                        Uri videoUri = Uri.fromFile(tempVideoFile);
+                        Intent intent = new Intent(context, VideoPlayerActivity.class);
+                        intent.putExtra("videoUri", videoUri.toString()); // Pasar URI como String
+                        context.startActivity(intent);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        Toast.makeText(context, "Error al cargar el video", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    Toast.makeText(context, "No hay video disponible para este contacto.", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
     }
+
+
+    private File decodeBase64AndSaveVideo(String base64String) throws IOException {
+        // Crear un archivo temporal para el video
+        File tempVideoFile = File.createTempFile("video", ".mp4", context.getCacheDir());
+
+        // Decodificar la cadena Base64
+        byte[] videoBytes = Base64.decode(base64String, Base64.DEFAULT);
+
+        // Guardar los bytes en el archivo temporal
+        try (FileOutputStream fos = new FileOutputStream(tempVideoFile)) {
+            fos.write(videoBytes);
+        }
+
+        return tempVideoFile;
+    }
+
+
 
     @Override
     public int getItemCount() {
@@ -118,6 +189,7 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
     public static class ContactViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvPhone;
         VideoView videoView;
+        ImageView ivPhoto; // Imagen de contacto
         ImageButton btnUpdate, btnDelete;
 
         public ContactViewHolder(@NonNull View itemView) {
@@ -125,11 +197,13 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             tvName = itemView.findViewById(R.id.tvName);
             tvPhone = itemView.findViewById(R.id.tvPhone);
             videoView = itemView.findViewById(R.id.videoView);
+            ivPhoto = itemView.findViewById(R.id.ivPhoto);
             btnUpdate = itemView.findViewById(R.id.btnUpdate);
             btnDelete = itemView.findViewById(R.id.btnDelete);
         }
     }
 
+    // Mostrar un diálogo para confirmar la ubicación
     private void showLocationDialog(Person contact) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setMessage("¿Desea ir a la ubicación de " + contact.getNombre() + "?")
@@ -143,6 +217,7 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
                 .show();
     }
 
+    // Abrir la ubicación del contacto en Google Maps
     private void openLocationInMap(Person contact) {
         double latitud = contact.getLatitud();
         double longitud = contact.getLongitud();
@@ -164,6 +239,7 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
         }
     }
 
+    // Mostrar un diálogo con opciones para el contacto
     private void showOptionsDialog(Person contact) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle("Opciones para " + contact.getNombre())
@@ -183,17 +259,20 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
                 .show();
     }
 
+    // Actualizar el contacto
     private void updateContact(Person contact) {
         Intent intent = new Intent(context, ActivityUpdate.class);
         intent.putExtra("id", String.valueOf(contact.getId()));
         context.startActivity(intent);
     }
 
+    // Filtrar la lista de contactos
     public void setFullContactList(List<Person> fullContactList) {
         this.contactListFull.clear();
         this.contactListFull.addAll(fullContactList);
     }
 
+    // Método para filtrar contactos basado en texto
     public void filter(String text) {
         contactList.clear();
         if (text.isEmpty()) {
@@ -209,61 +288,80 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
         notifyDataSetChanged();
     }
 
-    private void deleteContact(Person contact) {
-        Log.d("Delete Contact", "ID: " + contact.getId());
+    // Eliminar un contacto
+    private void deleteContact(final Person contact) {
+        new AlertDialog.Builder(context)
+                .setTitle("Confirmar eliminación")
+                .setMessage("¿Estás seguro de que quieres eliminar este contacto?")
+                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // Proceder con la eliminación del contacto
+                        Log.d("Delete Contact", "ID: " + contact.getId());
 
-        String url = "http://192.168.58.106/crud_php_examen/delete_persona.php?id=" + contact.getId();
+                        String url = "http://192.168.58.106/crud_php_examen/delete_persona.php?id=" + contact.getId();
+                        Log.d("Delete URL", url);
 
-        Log.d("Delete URL", url);
-
-        StringRequest deleteRequest = new StringRequest(Request.Method.DELETE, url,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        Log.d("Delete Response", response);
-                        try {
-                            JSONObject jsonResponse = new JSONObject(response);
-                            if (jsonResponse.has("message")) {
-                                contactList.remove(contact);
-                                notifyDataSetChanged();
-                                Toast.makeText(context, "Contacto eliminado correctamente", Toast.LENGTH_SHORT).show();
-                            } else if (jsonResponse.has("error")) {
-                                Toast.makeText(context, "Error: " + jsonResponse.getString("error"), Toast.LENGTH_SHORT).show();
-                            }
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                            Toast.makeText(context, "Error de respuesta: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        Log.e("Delete Error", error.toString());
-                        String errorMessage = "Error al eliminar el contacto";
-                        if (error.networkResponse != null && error.networkResponse.data != null) {
-                            try {
-                                String errorResponse = new String(error.networkResponse.data, "UTF-8");
-                                JSONObject jsonResponse = new JSONObject(errorResponse);
-                                if (jsonResponse.has("error")) {
-                                    errorMessage = "Error: " + jsonResponse.getString("error");
+                        StringRequest deleteRequest = new StringRequest(Request.Method.DELETE, url,
+                                new Response.Listener<String>() {
+                                    @Override
+                                    public void onResponse(String response) {
+                                        Log.d("Delete Response", response);
+                                        try {
+                                            JSONObject jsonResponse = new JSONObject(response);
+                                            if (jsonResponse.has("message")) {
+                                                contactList.remove(contact);
+                                                notifyDataSetChanged();
+                                                Toast.makeText(context, "Contacto eliminado correctamente", Toast.LENGTH_SHORT).show();
+                                            } else if (jsonResponse.has("error")) {
+                                                Toast.makeText(context, "Error: " + jsonResponse.getString("error"), Toast.LENGTH_SHORT).show();
+                                            }
+                                        } catch (JSONException e) {
+                                            e.printStackTrace();
+                                            Toast.makeText(context, "Error de respuesta: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                                        }
+                                    }
+                                },
+                                new Response.ErrorListener() {
+                                    @Override
+                                    public void onErrorResponse(VolleyError error) {
+                                        Log.e("Delete Error", error.toString());
+                                        String errorMessage = "Error al eliminar el contacto";
+                                        if (error.networkResponse != null && error.networkResponse.data != null) {
+                                            try {
+                                                String errorResponse = new String(error.networkResponse.data, "UTF-8");
+                                                JSONObject jsonResponse = new JSONObject(errorResponse);
+                                                if (jsonResponse.has("error")) {
+                                                    errorMessage = "Error: " + jsonResponse.getString("error");
+                                                }
+                                            } catch (UnsupportedEncodingException | JSONException e) {
+                                                e.printStackTrace();
+                                            }
+                                        }
+                                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show();
+                                    }
                                 }
-                            } catch (UnsupportedEncodingException | JSONException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show();
+                        );
+
+                        deleteRequest.setRetryPolicy(new DefaultRetryPolicy(
+                                DefaultRetryPolicy.DEFAULT_TIMEOUT_MS,
+                                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
+                        ));
+
+                        RequestQueue queue = Volley.newRequestQueue(context);
+                        queue.add(deleteRequest);
                     }
-                }
-        );
-
-        deleteRequest.setRetryPolicy(new DefaultRetryPolicy(
-                DefaultRetryPolicy.DEFAULT_TIMEOUT_MS,
-                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
-                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
-        ));
-
-        RequestQueue queue = Volley.newRequestQueue(context);
-        queue.add(deleteRequest);
+                })
+                .setNegativeButton(android.R.string.no, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // El usuario canceló la eliminación
+                        dialog.dismiss();
+                    }
+                })
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
     }
+
 }
+
+

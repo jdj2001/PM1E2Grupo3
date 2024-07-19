@@ -1,6 +1,7 @@
 package com.example.pm1e2grupo3;
 
 import android.Manifest;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -33,6 +34,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -41,6 +44,8 @@ import java.util.Map;
 public class ActivityUpdate extends AppCompatActivity {
     static final int PETICION_ACCESO_CAMARA = 101;
     static final int PETICION_CAPTURA_VIDEO = 102;
+    static final int CALIDAD_VIDEO = 1;
+    static final int DURACION_VIDEO = 30;
 
     private EditText etNombre, etTelefono, etLatitud, etLongitud;
     private VideoView videoView; // Cambiado de ImageView a VideoView
@@ -66,20 +71,23 @@ public class ActivityUpdate extends AppCompatActivity {
 
         if (getIntent().hasExtra("id")) {
             id = getIntent().getStringExtra("id");
-            fetchContactDetails(id);
+            loadContactDetails(id);
         } else {
             Toast.makeText(this, "No se recibió el ID del contacto", Toast.LENGTH_SHORT).show();
             finish();
         }
 
+        /*// Obtener el ID del contacto desde el Intent
+        Intent intent = getIntent();
+        id = intent.getStringExtra("id");
+
+        // Cargar los detalles del contacto
+        loadContactDetails(id);*/
+
         btnTakeVideo.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (ContextCompat.checkSelfPermission(ActivityUpdate.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(ActivityUpdate.this, new String[]{Manifest.permission.CAMERA}, PETICION_ACCESO_CAMARA);
-                } else {
-                    openCamera();
-                }
+                permisosVideo();
             }
         });
 
@@ -98,9 +106,46 @@ public class ActivityUpdate extends AppCompatActivity {
                 updateData();
             }
         });
+
     }
 
-    private void fetchContactDetails(String id) {
+    private void permisosVideo() {
+        if (ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.RECORD_AUDIO}, PETICION_ACCESO_CAMARA);
+        } else {
+            dispatchTakeVideoIntent();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PETICION_ACCESO_CAMARA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                dispatchTakeVideoIntent();
+            } else {
+                Toast.makeText(getApplicationContext(), "Acceso Denegado", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private void dispatchTakeVideoIntent() {
+        Intent takeVideoIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
+        if (takeVideoIntent.resolveActivity(getPackageManager()) != null) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Video.Media.TITLE, "New Video");
+            values.put(MediaStore.Video.Media.DESCRIPTION, "From your Camera");
+            videoUri = getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values);
+            takeVideoIntent.putExtra(MediaStore.EXTRA_OUTPUT, videoUri);
+            takeVideoIntent.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, CALIDAD_VIDEO);
+            takeVideoIntent.putExtra(MediaStore.EXTRA_DURATION_LIMIT, DURACION_VIDEO);
+            startActivityForResult(takeVideoIntent, PETICION_CAPTURA_VIDEO);
+        }
+    }
+
+    private void loadContactDetails(String id) {
         String url = "http://192.168.58.106/crud_php_examen/get_persona.php?id=" + id;
 
         StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
@@ -121,15 +166,20 @@ public class ActivityUpdate extends AppCompatActivity {
                             etLongitud.setText(longitud);
 
                             if (video != null && !video.isEmpty()) {
-                                // Reproducir el video
-                                videoView.setVideoURI(Uri.parse(video));
+                                byte[] videoBytes = Base64.decode(video, Base64.DEFAULT);
+                                File videoFile = new File(getFilesDir(), "video.mp4");
+                                FileOutputStream fos = new FileOutputStream(videoFile);
+                                fos.write(videoBytes);
+                                fos.close();
+
+                                videoUri = Uri.fromFile(videoFile);
+                                Log.d("ActivityUpdate", "Video URI: " + videoUri.toString());
+                                videoView.setVideoURI(videoUri);
                                 videoView.start();
                             } else {
                                 videoView.setVideoURI(null);
-                                // Aquí puedes poner un mensaje o una imagen predeterminada si es necesario
                             }
-
-                        } catch (JSONException e) {
+                        } catch (JSONException | IOException e) {
                             e.printStackTrace();
                             Toast.makeText(ActivityUpdate.this, "Error al obtener los detalles del contacto", Toast.LENGTH_SHORT).show();
                         }
@@ -146,14 +196,17 @@ public class ActivityUpdate extends AppCompatActivity {
         requestQueue.add(stringRequest);
     }
 
+
+
     private void updateData() {
         String url = "http://192.168.58.106/crud_php_examen/update_persona.php";
         StringRequest stringRequest = new StringRequest(Request.Method.POST, url,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
+                        Log.d("Response", response);
                         Toast.makeText(ActivityUpdate.this, "Datos actualizados correctamente", Toast.LENGTH_SHORT).show();
-                        finish();
+                        finish(); // Cierra la actividad y regresa a la pantalla de listado
                     }
                 }, new Response.ErrorListener() {
             @Override
@@ -170,13 +223,14 @@ public class ActivityUpdate extends AppCompatActivity {
                 params.put("telefono", telefono);
                 params.put("latitud", latitud);
                 params.put("longitud", longitud);
-                params.put("video", video); // Cambiado a 'video'
+                params.put("video", video); // Asegúrate de que 'video' sea una cadena Base64 del video
                 return params;
             }
         };
 
         requestQueue.add(stringRequest);
     }
+
 
     private void openCamera() {
         Intent intent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
@@ -187,9 +241,8 @@ public class ActivityUpdate extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == PETICION_CAPTURA_VIDEO && resultCode == RESULT_OK) {
+        if (requestCode == PETICION_CAPTURA_VIDEO && resultCode == RESULT_OK && data != null) {
             videoUri = data.getData();
-            // Reproducir el video capturado
             videoView.setVideoURI(videoUri);
             videoView.start();
         }
