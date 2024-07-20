@@ -267,6 +267,7 @@ public class ActivityCreate extends AppCompatActivity {
                         clearFields();
                         btnSave.setEnabled(true);
                     }
+
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
