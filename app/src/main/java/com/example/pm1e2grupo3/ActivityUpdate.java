@@ -53,6 +53,7 @@ public class ActivityUpdate extends AppCompatActivity {
     private String id, nombre, telefono, latitud, longitud, video;
     private Uri videoUri;
     private RequestQueue requestQueue;
+    private String videoBase64;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -145,6 +146,7 @@ public class ActivityUpdate extends AppCompatActivity {
         }
     }
 
+
     private void loadContactDetails(String id) {
         String url = "http://192.168.58.106/crud_php_examen/get_persona.php?id=" + id;
 
@@ -196,8 +198,6 @@ public class ActivityUpdate extends AppCompatActivity {
         requestQueue.add(stringRequest);
     }
 
-
-
     private void updateData() {
         String url = "http://192.168.58.106/crud_php_examen/update_persona.php";
         StringRequest stringRequest = new StringRequest(Request.Method.POST, url,
@@ -247,6 +247,7 @@ public class ActivityUpdate extends AppCompatActivity {
             videoView.start();
         }
     }
+
 
     private String encodeVideo(Uri videoUri) {
         try {

@@ -43,13 +43,12 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
 
     private Context context;
     private List<Person> contactList;
-    private List<Person> contactListFull; // Lista completa para realizar la búsqueda
+    private List<Person> contactListFull;
 
-    // Constructor del adaptador
     public ContactAdapter(Context context, List<Person> contactList) {
         this.context = context;
         this.contactList = contactList;
-        this.contactListFull = new ArrayList<>(contactList); // Inicializar la lista completa
+        this.contactListFull = new ArrayList<>(contactList);
     }
 
     @NonNull
@@ -65,7 +64,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
         holder.tvName.setText(contact.getNombre());
         holder.tvPhone.setText(contact.getTelefono());
 
-        // Manejar la carga del video
         if (contact.getVideo() != null && !contact.getVideo().isEmpty()) {
             holder.videoView.setVisibility(View.VISIBLE);
             holder.ivPhoto.setVisibility(View.GONE);
@@ -106,7 +104,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             holder.ivPhoto.setVisibility(View.VISIBLE);
         }
 
-        // Configurar el botón de actualización
         holder.btnUpdate.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -114,7 +111,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             }
         });
 
-        // Configurar el botón de eliminación
         holder.btnDelete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -122,7 +118,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             }
         });
 
-        // Configurar el clic en el ítem de la lista
         holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -130,7 +125,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             }
         });
 
-        // Configurar el clic largo en el ítem de la lista
         holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
@@ -139,18 +133,15 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
             }
         });
 
-        // Configurar el clic en el VideoView para reproducir el video
         holder.videoView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Verifica si la URI del video es válida
                 if (contact.getVideo() != null && !contact.getVideo().isEmpty()) {
-                    // Crear un archivo temporal para el video
                     try {
                         File tempVideoFile = decodeBase64AndSaveVideo(contact.getVideo());
                         Uri videoUri = Uri.fromFile(tempVideoFile);
                         Intent intent = new Intent(context, VideoPlayerActivity.class);
-                        intent.putExtra("videoUri", videoUri.toString()); // Pasar URI como String
+                        intent.putExtra("videoUri", videoUri.toString());
                         context.startActivity(intent);
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -163,15 +154,11 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
         });
     }
 
-
     private File decodeBase64AndSaveVideo(String base64String) throws IOException {
-        // Crear un archivo temporal para el video
         File tempVideoFile = File.createTempFile("video", ".mp4", context.getCacheDir());
 
-        // Decodificar la cadena Base64
         byte[] videoBytes = Base64.decode(base64String, Base64.DEFAULT);
 
-        // Guardar los bytes en el archivo temporal
         try (FileOutputStream fos = new FileOutputStream(tempVideoFile)) {
             fos.write(videoBytes);
         }
@@ -189,7 +176,7 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
     public static class ContactViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvPhone;
         VideoView videoView;
-        ImageView ivPhoto; // Imagen de contacto
+        ImageView ivPhoto;
         ImageButton btnUpdate, btnDelete;
 
         public ContactViewHolder(@NonNull View itemView) {
@@ -203,7 +190,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
         }
     }
 
-    // Mostrar un diálogo para confirmar la ubicación
     private void showLocationDialog(Person contact) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setMessage("¿Desea ir a la ubicación de " + contact.getNombre() + "?")
@@ -217,7 +203,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
                 .show();
     }
 
-    // Abrir la ubicación del contacto en Google Maps
     private void openLocationInMap(Person contact) {
         double latitud = contact.getLatitud();
         double longitud = contact.getLongitud();
@@ -239,7 +224,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
         }
     }
 
-    // Mostrar un diálogo con opciones para el contacto
     private void showOptionsDialog(Person contact) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle("Opciones para " + contact.getNombre())
@@ -247,10 +231,10 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         switch (which) {
-                            case 0: // Actualizar
+                            case 0:
                                 updateContact(contact);
                                 break;
-                            case 1: // Eliminar
+                            case 1:
                                 deleteContact(contact);
                                 break;
                         }
@@ -259,20 +243,17 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
                 .show();
     }
 
-    // Actualizar el contacto
     private void updateContact(Person contact) {
         Intent intent = new Intent(context, ActivityUpdate.class);
         intent.putExtra("id", String.valueOf(contact.getId()));
         context.startActivity(intent);
     }
 
-    // Filtrar la lista de contactos
     public void setFullContactList(List<Person> fullContactList) {
         this.contactListFull.clear();
         this.contactListFull.addAll(fullContactList);
     }
 
-    // Método para filtrar contactos basado en texto
     public void filter(String text) {
         contactList.clear();
         if (text.isEmpty()) {
@@ -288,14 +269,12 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
         notifyDataSetChanged();
     }
 
-    // Eliminar un contacto
     private void deleteContact(final Person contact) {
         new AlertDialog.Builder(context)
                 .setTitle("Confirmar eliminación")
                 .setMessage("¿Estás seguro de que quieres eliminar este contacto?")
                 .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        // Proceder con la eliminación del contacto
                         Log.d("Delete Contact", "ID: " + contact.getId());
 
                         String url = "http://192.168.58.106/crud_php_examen/delete_persona.php?id=" + contact.getId();
@@ -354,7 +333,6 @@ public class ContactAdapter extends RecyclerView.Adapter<ContactAdapter.ContactV
                 })
                 .setNegativeButton(android.R.string.no, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        // El usuario canceló la eliminación
                         dialog.dismiss();
                     }
                 })

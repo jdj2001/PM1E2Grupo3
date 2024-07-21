@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.util.Base64;
@@ -98,12 +99,12 @@ public class ActivityCreate extends AppCompatActivity {
         try {
             gpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
         } catch (Exception ex) {
-            // Manejar excepción si es necesario
+
         }
 
         if (!gpsEnabled) {
             new AlertDialog.Builder(this)
-                    .setMessage("El GPS no está activado. ¿Deseas activarlo?")
+                    .setMessage("El GPS no está activado. ¿Desea activarlo?")
                     .setCancelable(false)
                     .setPositiveButton("Sí", new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int id) {
@@ -160,7 +161,6 @@ public class ActivityCreate extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == PETICION_CAPTURA_VIDEO && resultCode == RESULT_OK) {
-            // Verificar si data es null o si data.getData() es null
             if (data != null && data.getData() != null) {
                 videoUri = data.getData();
             }
@@ -190,12 +190,10 @@ public class ActivityCreate extends AppCompatActivity {
             byte[] buffer = new byte[1024];
             int length;
 
-            // Leer el archivo en trozos y escribirlo en el ByteArrayOutputStream
             while ((length = inputStream.read(buffer)) != -1) {
                 byteArrayOutputStream.write(buffer, 0, length);
             }
 
-            // Convertir los bytes leídos a una cadena Base64
             byte[] bytes = byteArrayOutputStream.toByteArray();
             return Base64.encodeToString(bytes, Base64.DEFAULT);
 
@@ -204,7 +202,6 @@ public class ActivityCreate extends AppCompatActivity {
             return null;
 
         } finally {
-            // Cerrar el InputStream y ByteArrayOutputStream
             try {
                 if (inputStream != null) {
                     inputStream.close();
@@ -249,7 +246,7 @@ public class ActivityCreate extends AppCompatActivity {
             return;
         }
 
-        btnSave.setEnabled(false); // Deshabilitar el botón de guardar
+        btnSave.setEnabled(false);
 
         RequestQueue requestQueue = Volley.newRequestQueue(this);
 
@@ -298,15 +295,23 @@ public class ActivityCreate extends AppCompatActivity {
 
     }
 
-
     private void clearFields() {
         etNombre.setText("");
         etTelefono.setText("");
         etLatitud.setText("");
         etLongitud.setText("");
+
+        videoView.stopPlayback();
         videoView.setVideoURI(null);
+
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                videoView.setVisibility(View.GONE);
+                videoView.setVisibility(View.VISIBLE);
+            }
+        }, 100);
+
         videoBase64 = null;
     }
-
-
 }
